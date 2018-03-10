@@ -397,10 +397,10 @@ readInput (PmContext stream) length =
     withForeignPtr stream $ \stream_ptr -> do
         alloca $ \evtBuffer -> do
             result <- c_Pm_Read stream_ptr evtBuffer (fromIntegral length)
-            if result <= 0
+            if result < 0
                 then return (Left $ PmError result)
                 else do
-                    evts <- foldr (\n -> \acc -> (:) <$> (peekElemOff evtBuffer n) <*> acc) (return []) (range (0,fromIntegral result))
+                    evts <- foldr (\n -> \acc -> (:) <$> (peekElemOff evtBuffer n) <*> acc) (return []) (range (0,(fromIntegral result) - 1))
                     return (Right evts)
 
 pollInput :: PmContext -> IO (Either PmError Bool)

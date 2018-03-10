@@ -50,6 +50,7 @@ data Message =
     | FD
     | Active
     | Reset
+    | Unknown Word8
     deriving (Eq)
 
 instance Show Message where
@@ -86,6 +87,7 @@ instance Show Message where
   show (FD) = "{FD}"
   show (Active) = "{Active}"
   show (Reset) = "{Reset}"
+  show (Unknown msg) = "{Unknown:" ++ show msg ++ "}"
 
 {-
    Internal low-level structure that serves as an intermediate between
@@ -138,16 +140,17 @@ toLowLevelMessage Stop = mkLLM1 0xFC
 toLowLevelMessage FD = mkLLM1 0xFD
 toLowLevelMessage Active = mkLLM1 0xFE
 toLowLevelMessage Reset = mkLLM1 0xFF
+toLowLevelMessage (Unknown msg) = mkLLM1 msg
 
 fromLowLevelMessage :: LowLevelMessage -> Message
 fromLowLevelMessage (LowLevelMessage status data1 data2)
-    | status .&. 0x90 == status = NoteOff (getChannel status) data1 data2
-    | status .&. 0x80 == status = NoteOn  (getChannel status) data1 data2
-    | status .&. 0xA0 == status = PolyphonicAftertouch (getChannel status) data1 data2
-    | status .&. 0xB0 == status = ControlChange (getChannel status) data1 data2
-    | status .&. 0xC0 == status = ProgramChange (getChannel status) data1
-    | status .&. 0xD0 == status = ChannelAftertouch (getChannel status) data1
-    | status .&. 0xE0 == status = PitchBend (getChannel status) (compose14 data1 data2)
+    | (status .&. 0x90) == status = NoteOff (getChannel status) data1 data2
+    | (status .&. 0x80) == status = NoteOn  (getChannel status) data1 data2
+    | (status .&. 0xA0) == status = PolyphonicAftertouch (getChannel status) data1 data2
+    | (status .&. 0xB0) == status = ControlChange (getChannel status) data1 data2
+    | (status .&. 0xC0) == status = ProgramChange (getChannel status) data1
+    | (status .&. 0xD0) == status = ChannelAftertouch (getChannel status) data1
+    | (status .&. 0xE0) == status = PitchBend (getChannel status) (compose14 data1 data2)
     | status == 0xF0 = SysEx
     | status == 0xF7 = EOX
     | status == 0xF1 = TimeCodeQuarterFrame (shiftR (data1 .&. 0x70) 4) (data1 .&. 0x0F)
@@ -164,6 +167,7 @@ fromLowLevelMessage (LowLevelMessage status data1 data2)
     | status == 0xFD = FD
     | status == 0xFE = Active
     | status == 0xFF = Reset
+    | otherwise = Unknown status
 
 compile :: LowLevelMessage -> Int
 compile (LowLevelMessage st d1 d2) =
