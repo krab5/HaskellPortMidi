@@ -1,13 +1,31 @@
+{-
+   Sub-module for dealing with MIDI Message.
+   The only exposed features are the Message data type as
+   well as 4 functions mainly used by Midi.hs
+
+   @author krab5
+
+   Changelog:
+    2018/03/01  Creation
+    2018/03/09  First version completion
+    2018/03/10  Commenting and cleaning for release
+-}
 module Midi.Message (
-    Message,
+    Message(..),
     msgToInt, intToMsg,
     msgToPmmsg, pmmsgToMsg,
     ) where
 
+-- Imports
 import Data.Bits
 import Data.Word (Word8,Word16)
 import Midi.Internal (PmMessage(..),pm_msg)
 
+{-
+   The Message data type.
+   This type is made of several high-level constructors that makes it
+   easy to create correct MIDI messages.
+-}
 data Message =
       NoteOff Word8 Word8 Word8
     | NoteOn Word8 Word8 Word8
@@ -35,30 +53,44 @@ data Message =
     deriving (Eq)
 
 instance Show Message where
-  show (NoteOff Word8 Word8 Word8) =
-  show (NoteOn Word8 Word8 Word8) =
-  show (PolyphonicAftertouch Word8 Word8 Word8) =
-  show (ControlChange Word8 Word8 Word8) =
-  show (ProgramChange Word8 Word8) =
-  show (ChannelAftertouch Word8 Word8) =
-  show (PitchBend Word8 Word16) =
-  show (SysEx) =
-  show (EOX) =
-  show (TimeCodeQuarterFrame Word8 Word8) =
-  show (SongPosition Word16) =
-  show (SongSelect Word8) =
-  show (F4) =
-  show (F5) =
-  show (TuneRequest) =
-  show (Clock) =
-  show (F9) =
-  show (Start) =
-  show (Continue) =
-  show (Stop) =
-  show (FD) =
-  show (Active) =
-  show (Reset) =
+  show (NoteOff c n v) =
+      "{NoteOff channel=" ++ show c ++ " note=" ++ show n ++ " velocity=" ++ show v ++ "}"
+  show (NoteOn c n v) =
+      "{NoteOn channel="  ++ show c ++ " note=" ++ show n ++ " velocity=" ++ show v ++ "}"
+  show (PolyphonicAftertouch c n v) =
+      "{PolyAftertouch channel="  ++ show c ++ " note=" ++ show n ++ " value=" ++ show v ++ "}"
+  show (ControlChange c cc v) =
+      "{ControlChange channel="  ++ show c ++ " CC=" ++ show cc ++ " value=" ++ show v ++ "}"
+  show (ProgramChange c p) =
+      "{ProgramChange channel="  ++ show c ++ " program=" ++ show p ++ "}"
+  show (ChannelAftertouch c v) =
+      "{ChannelAftertouch channel="  ++ show c ++ " value=" ++ show v ++ "}"
+  show (PitchBend c v) =
+      "{PitchBend channel="  ++ show c ++ " value=" ++ show v ++ "}"
+  show (SysEx) = "{SysEx}"
+  show (EOX) = "{EOX}"
+  show (TimeCodeQuarterFrame m v) =
+      "{MTC messagetypes=" ++ show m ++ " values=" ++ show v ++ "}"
+  show (SongPosition pos) =
+      "{SongPosition position=" ++ show pos ++ "}"
+  show (SongSelect sg) =
+      "{SongSelect song=" ++ show sg ++ "}"
+  show (F4) = "{F4}"
+  show (F5) = "{F5}"
+  show (TuneRequest) = "{TuneRequest}"
+  show (Clock) = "{Clock}"
+  show (F9) = "{F9}"
+  show (Start) = "{Start}"
+  show (Continue) = "{Continue}"
+  show (Stop) = "{Stop}"
+  show (FD) = "{FD}"
+  show (Active) = "{Active}"
+  show (Reset) = "{Reset}"
 
+{-
+   Internal low-level structure that serves as an intermediate between
+   lower level Int and higher level Message.
+-}
 data LowLevelMessage = LowLevelMessage { status :: Word8, data1 :: Word8, data2 :: Word8 } deriving (Eq,Show)
 
 mkLLM1 :: Word8 -> LowLevelMessage
@@ -78,9 +110,9 @@ getChannel status = (status .&. 0x0F)
 
 compose14 :: Word8 -> Word8 -> Word16
 compose14 lsb msb =
-let lsb16 = (fromIntegral lsb) .&. 0xFF
-msb16 = (fromIntegral msb) .&. 0xFF in
-lsb16 .|. (shift msb16 7)
+    let lsb16 = (fromIntegral lsb) .&. 0xFF
+        msb16 = (fromIntegral msb) .&. 0xFF in
+        lsb16 .|. (shift msb16 7)
 
 toLowLevelMessage :: Message -> LowLevelMessage
 toLowLevelMessage (NoteOff channel key velocity) = mkLLM3 (mkChannel 0x90 channel) key velocity
@@ -109,43 +141,43 @@ toLowLevelMessage Reset = mkLLM1 0xFF
 
 fromLowLevelMessage :: LowLevelMessage -> Message
 fromLowLevelMessage (LowLevelMessage status data1 data2)
-| status .&. 0x90 == status = NoteOff (getChannel status) data1 data2
-| status .&. 0x80 == status = NoteOn  (getChannel status) data1 data2
-| status .&. 0xA0 == status = PolyphonicAftertouch (getChannel status) data1 data2
-| status .&. 0xB0 == status = ControlChange (getChannel status) data1 data2
-| status .&. 0xC0 == status = ProgramChange (getChannel status) data1
-| status .&. 0xD0 == status = ChannelAftertouch (getChannel status) data1
-| status .&. 0xE0 == status = PitchBend (getChannel status) (compose14 data1 data2)
-| status == 0xF0 = SysEx
-| status == 0xF7 = EOX
-| status == 0xF1 = TimeCodeQuarterFrame (shiftR (data1 .&. 0x70) 4) (data1 .&. 0x0F)
-| status == 0xF2 = SongPosition (compose14 data1 data2)
-| status == 0xF3 = SongSelect data1
-| status == 0xF4 = F4
-| status == 0xF5 = F5
-| status == 0xF6 = TuneRequest
-| status == 0xF8 = Clock
-| status == 0xF9 = F9
-| status == 0xFA = Start
-| status == 0xFB = Continue
-| status == 0xFC = Stop
-| status == 0xFD = FD
-| status == 0xFE = Active
-| status == 0xFF = Reset
+    | status .&. 0x90 == status = NoteOff (getChannel status) data1 data2
+    | status .&. 0x80 == status = NoteOn  (getChannel status) data1 data2
+    | status .&. 0xA0 == status = PolyphonicAftertouch (getChannel status) data1 data2
+    | status .&. 0xB0 == status = ControlChange (getChannel status) data1 data2
+    | status .&. 0xC0 == status = ProgramChange (getChannel status) data1
+    | status .&. 0xD0 == status = ChannelAftertouch (getChannel status) data1
+    | status .&. 0xE0 == status = PitchBend (getChannel status) (compose14 data1 data2)
+    | status == 0xF0 = SysEx
+    | status == 0xF7 = EOX
+    | status == 0xF1 = TimeCodeQuarterFrame (shiftR (data1 .&. 0x70) 4) (data1 .&. 0x0F)
+    | status == 0xF2 = SongPosition (compose14 data1 data2)
+    | status == 0xF3 = SongSelect data1
+    | status == 0xF4 = F4
+    | status == 0xF5 = F5
+    | status == 0xF6 = TuneRequest
+    | status == 0xF8 = Clock
+    | status == 0xF9 = F9
+    | status == 0xFA = Start
+    | status == 0xFB = Continue
+    | status == 0xFC = Stop
+    | status == 0xFD = FD
+    | status == 0xFE = Active
+    | status == 0xFF = Reset
 
 compile :: LowLevelMessage -> Int
 compile (LowLevelMessage st d1 d2) =
-let wst = fromIntegral st
-wd1 = fromIntegral d1
-wd2 = fromIntegral d2 in
-wst .|. ((shift wd1 8) .&. 0xFF00) .|. ((shift wd2 16) .&. 0xFF0000)
+    let wst = fromIntegral st
+        wd1 = fromIntegral d1
+        wd2 = fromIntegral d2 in
+        wst .|. ((shift wd1 8) .&. 0xFF00) .|. ((shift wd2 16) .&. 0xFF0000)
 
 unfold :: Int -> LowLevelMessage
 unfold msg =
-let wst = fromIntegral $ msg .&. 0xFF
-wd1 = fromIntegral $ (shiftR msg 8) .&. 0xFF
-wd2 = fromIntegral $ (shiftR msg 16) .&. 0xFF in
-LowLevelMessage { status = wst, data1 = wd1, data2 = wd2 }
+    let wst = fromIntegral $ msg .&. 0xFF
+        wd1 = fromIntegral $ (shiftR msg 8) .&. 0xFF
+        wd2 = fromIntegral $ (shiftR msg 16) .&. 0xFF in
+        LowLevelMessage { status = wst, data1 = wd1, data2 = wd2 }
 
 msgToInt :: Message -> Int
 msgToInt = compile . toLowLevelMessage

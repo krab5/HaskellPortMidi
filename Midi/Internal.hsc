@@ -1,14 +1,34 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface, EmptyDataDecls #-}
+{-
+   FFI Bindings of PortMidi to Haskell.
+   This file is to be transformed using hsc2hs (to generate Haskell code)
+   and then compiled to a .o
+
+   The file contains mainly straight bindings from the PortMidi library to
+   Haskell. This is the lowest level of binding, which is then nicely
+   wrapped in Midi.hs
+
+   @author krab5
+   
+   Changelog:
+    2018/03/01  Creation
+    2018/03/09  First version completion
+    2018/03/10  Commenting and cleaning for release
+-}
 module Midi.Internal where
 
+-- Note: everything is exported to make things easier.
+-- This module should not be imported and used as is anyway.
+
+-- Imports
 import Data.Ix
 import Foreign
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.C.Types
 import Foreign.C.String
---import System.IO (unsafePerformIO,)
 
+-- Include PortMidi main header
 #include <portmidi.h>
 
 {- Types -}
@@ -20,6 +40,7 @@ newtype PmDeviceID = PmDeviceID { pm_dev_id :: CInt } deriving (Eq,Show)
 newtype PmTimestamp = PmTimestamp { pm_ts :: CInt } deriving (Eq,Show,Ord)
 newtype PmMessage = PmMessage { pm_msg :: CInt } deriving (Eq,Show)
 
+-- TODO: propose to the user a way to define its own timestamp callback
 type PmTimeProcPtr = FunPtr (Ptr () -> PmTimestamp)
 
 -- Structs
@@ -97,9 +118,6 @@ __pm_HDRLength = #const HDRLENGTH
 
 pmHostErrorMsgLen :: CUInt
 pmHostErrorMsgLen = #const PM_HOST_ERROR_MSG_LEN
-
-midiEox :: Word8
-midiEox = 0xf7
 
 {- Storable instances -}
 instance Storable PmBool where
@@ -274,26 +292,6 @@ filt_combine = PmFilter . foldr ((.|.) . filtercode) 0
 mask_combine :: [CInt] -> CInt
 mask_combine = foldr (.|.) 0
 
-wordToCInt :: Word8 -> CInt
-wordToCInt = fromIntegral
-
-cIntToWord :: CInt -> Word8
-cIntToWord = fromIntegral . ((.&.) 0xFF)
-
-compile :: [Word8] -> CInt
-compile = foldr (\x -> \acc -> (shift acc 8) .|. (wordToCInt x)) 0
-
-unfold :: CInt -> [Word8]
-unfold = (map cIntToWord) . (take 4) . (iterate $ flip shift $ -8)
-
-{-
-errorText :: PmError -> IO String
-errorText err = do
-    errstr <- c_Pm_GetErrorText err
-    str <- peekCString errstr
-    return (str)
--}
-
 errorText :: PmError -> IO String
 errorText err =
     (c_Pm_GetErrorText err) >>= peekCString
@@ -320,6 +318,13 @@ getIsOpened = pmbool_to_bool . pm_opened
 {- Context -}
 data PmContext = PmContext !(ForeignPtr PmStream)
 
+{- Mid-level bindings -}
+{-
+   This part is intended to be a "mid-level" set of functions to be
+   called by Midi.hs. They allow to have a more readable code and
+   takes care of everything that needs the Foreign module (to avoid
+   importing Foreign in Midi.hs.
+-}
 hasHostError :: PmContext -> IO Bool
 hasHostError (PmContext stream) = do
     withForeignPtr stream $ \pmstream_ptr -> do
