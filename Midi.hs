@@ -95,8 +95,6 @@ pmts_to_ts = fromIntegral . I.pm_ts
 -}
 data StreamError =
           NoError
-        | NoData
-        | GotData
         | HostError
         | InvalidDeviceID
         | InsufficientMemory
@@ -112,8 +110,6 @@ err_to_pmerr :: StreamError -> I.PmError
 err_to_pmerr err =
     case err of
       NoError -> I.pmNoError
-      NoData -> I.pmNoData
-      GotData -> I.pmGotData
       HostError -> I.pmHostError
       InvalidDeviceID -> I.pmInvalidDeviceId
       InsufficientMemory -> I.pmInsufficientMemory
@@ -126,9 +122,6 @@ err_to_pmerr err =
 
 pmerr_to_err :: I.PmError -> StreamError
 pmerr_to_err err 
-    | err == I.pmNoError = NoError
-    | err == I.pmNoData = NoData
-    | err == I.pmGotData = GotData
     | err == I.pmHostError = HostError
     | err == I.pmInvalidDeviceId = InvalidDeviceID
     | err == I.pmInsufficientMemory = InsufficientMemory
@@ -138,6 +131,7 @@ pmerr_to_err err
     | err == I.pmBadData = BadData
     | err == I.pmBufferMaxSize = BufferMaxSize
     | err == I.pmInternalError = InternalError
+    | I.errorCode err >= 0 = NoError
     | otherwise = InternalError
 
 {-
@@ -338,9 +332,7 @@ data Stream = Stream { ctx_ :: I.PmContext }
     MIDI streams.
 -}
 data MIDIException =
-          NoDeviceException
-        | NoDataException
-        | HostErrorException
+          HostErrorException
         | InvalidDeviceIDException
         | InsufficientMemoryException
         | BufferTooSmallException
@@ -349,12 +341,22 @@ data MIDIException =
         | BadDataException
         | InternalErrorException
         | BufferMaxSizeException
-        deriving (Eq,Show,Typeable)
+        deriving (Eq,Typeable)
+
+instance Show MIDIException where
+  show HostErrorException = "Host error"
+  show InvalidDeviceIDException = "Invalid device ID"
+  show InsufficientMemoryException = "Insufficient memory"
+  show BufferTooSmallException = "Buffer too small"
+  show BufferOverflowException = "Buffer overflow"
+  show BadPtrException = "Bad pointer"
+  show BadDataException = "Invalid MIDI data"
+  show InternalErrorException = "Internal PortMidi error"
+  show BufferMaxSizeException = "Buffer reached maximum size"
 
 instance Exception MIDIException
 
 errorToException :: StreamError -> MIDIException
-errorToException NoData             = NoDataException
 errorToException HostError          = HostErrorException
 errorToException InvalidDeviceID    = InvalidDeviceIDException
 errorToException InsufficientMemory = InsufficientMemoryException
@@ -366,9 +368,8 @@ errorToException InternalError      = InternalErrorException
 errorToException BufferMaxSize      = BufferMaxSizeException
 
 throwIOMIDIException :: StreamError -> IO ()
-throwIOMIDIException se
-    | se == NoError || se == GotData = return ()
-    | otherwise = throw $ errorToException se
+throwIOMIDIException NoError = (return ())
+throwIOMIDIException se = throw $ errorToException se
 
 throwEitherMIDIException :: Either StreamError a -> IO a
 throwEitherMIDIException ei =
@@ -381,12 +382,6 @@ throwMaybeMIDIException m =
     case m of
       Nothing -> throw InvalidDeviceIDException
       Just a -> return a
-
-throwNoDeviceMIDIException ::  Device -> IO Device
-throwNoDeviceMIDIException dev =
-    case dev of
-      NoDevice -> throw NoDeviceException
-      Device _ -> return dev
 
 
 {- Functions -}
@@ -419,13 +414,13 @@ countDevices =
 -- May raise an exception if there are no default input device
 defaultInputDevice :: IO Device
 defaultInputDevice = 
-    (fmap pmdevice_to_device $ I.c_Pm_GetDefaultInputDeviceID) >>= throwNoDeviceMIDIException
+    (fmap pmdevice_to_device $ I.c_Pm_GetDefaultInputDeviceID) 
 
 -- Get the default output device
 -- -- May raise an exception if there are no default output device
 defaultOutputDevice :: IO Device
 defaultOutputDevice =
-    (fmap pmdevice_to_device $ I.c_Pm_GetDefaultOutputDeviceID) >>= throwNoDeviceMIDIException
+    (fmap pmdevice_to_device $ I.c_Pm_GetDefaultOutputDeviceID)
 
 -- Get the informations related to the given device
 -- Throw an exception if the device does not exist
