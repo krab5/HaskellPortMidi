@@ -318,6 +318,11 @@ getIsOpened = pmbool_to_bool . pm_opened
 {- Context -}
 data PmContext = PmContext !(ForeignPtr PmStream)
 
+noContext :: IO PmContext
+noContext = do
+    ptr <- newForeignPtr_ nullPtr
+    return $ PmContext ptr
+
 {- Mid-level bindings -}
 {-
    This part is intended to be a "mid-level" set of functions to be

@@ -20,7 +20,7 @@ module Midi (
     ChannelMask, allChannels, noChannels, maskChannel, unmaskChannel, combineMasks,
     DeviceInfo, structureVersion, apiName, deviceName, isInput, isOutput, isOpened,
     Event, message, timestamp, mkEvent, fromMessage,
-    Stream,
+    Stream, noStream,
     MIDIException(..), errorToException,
     Device(..),
     Timestamp,
@@ -324,6 +324,9 @@ fromMessage = flip mkEvent $ 0
     (kind of) Abstract type representing a MIDI stream.
 -}
 data Stream = Stream { ctx_ :: I.PmContext }
+
+noStream :: IO Stream
+noStream = fmap (Stream) $ I.noContext
 
 {-
     MIDIException data type
